@@ -1,11 +1,10 @@
+import '@/lib/node-polyfill';
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   });
 
   const supabase = createServerClient(
@@ -19,18 +18,14 @@ export async function middleware(request: NextRequest) {
         set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options });
           response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
+            request: { headers: request.headers },
           });
           response.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: '', ...options });
           response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
+            request: { headers: request.headers },
           });
           response.cookies.set({ name, value: '', ...options });
         },
@@ -39,34 +34,77 @@ export async function middleware(request: NextRequest) {
   );
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith('/employee/dashboard') && !session) {
-    return NextResponse.redirect(new URL('/employee/login', request.url));
+  // Role-based routing: Staff routes require authenticated employee or admin
+  if (pathname.startsWith('/staff')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth?tab=employee', request.url));
+    }
+    const { data: profile } = await supabase
+      .from('users')
+      .select('user_type')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || (profile.user_type !== 'staff' && profile.user_type !== 'admin')) {
+      return NextResponse.redirect(new URL('/auth?tab=employee&error=NotStaff', request.url));
+    }
   }
 
-  if (
-    (pathname.startsWith('/employee/login') || pathname.startsWith('/employee/signup')) &&
-    session
-  ) {
-    return NextResponse.redirect(new URL('/employee/dashboard', request.url));
+  // Admin routes require authenticated admin
+  if (pathname.startsWith('/admin')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth?tab=employee', request.url));
+    }
+    const { data: profile } = await supabase
+      .from('users')
+      .select('user_type')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || profile.user_type !== 'admin') {
+      return NextResponse.redirect(new URL('/auth?tab=employee&error=NotStaff', request.url));
+    }
   }
 
+  // My reports requires auth
+  if (pathname.startsWith('/me')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth', request.url));
+    }
+  }
+
+  // Settings requires auth
+  if (pathname === '/settings') {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth', request.url));
+    }
+  }
+
+  // Notifications requires auth
+  if (pathname === '/notifications') {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth', request.url));
+    }
+  }
+
+  // Auth pages: redirect to capture screen if already signed in
+  if (pathname.startsWith('/auth') && !pathname.startsWith('/auth/callback') && !pathname.startsWith('/auth/profile')) {
+    if (user) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+
+  // Public routes: /, /report/*, /track/[token] — no auth required
   return response;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|firebase-messaging-sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

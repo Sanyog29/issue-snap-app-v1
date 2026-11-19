@@ -39,6 +39,16 @@ next-env.d.ts
 
 .genkit/*
 .env*
+.env.local
+.env.example
+
+# database migrations
+migrations/
+*.sql
+
+# local guide & credentials
+idx1
+idx1.md
 
 # firebase
 firebase-debug.log

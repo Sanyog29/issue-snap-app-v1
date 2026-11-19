@@ -1,4 +1,1 @@
-import { config } from 'dotenv';
-config();
-
-import '@/ai/flows/generate-complaint-from-image.ts';
+import '@/ai/flows/analyze-image';

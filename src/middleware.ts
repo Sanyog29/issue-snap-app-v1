@@ -3,6 +3,15 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 export async function middleware(request: NextRequest) {
+  // Enforce HTTPS redirect on production domains
+  const proto = request.headers.get('x-forwarded-proto');
+  const host = request.headers.get('host') || '';
+  if (proto === 'http' && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    const httpsUrl = new URL(request.url);
+    httpsUrl.protocol = 'https:';
+    return NextResponse.redirect(httpsUrl, 301);
+  }
+
   let response = NextResponse.next({
     request: { headers: request.headers },
   });

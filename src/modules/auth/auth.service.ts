@@ -18,7 +18,10 @@ export async function initiateOAuthSignIn(
   const provider = params.provider || 'google';
 
   try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    let origin = typeof window !== 'undefined' ? window.location.origin : 'https://issue-snap.sanyog.online';
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      origin = origin.replace(/^http:/, 'https:');
+    }
     const redirectUrl = `${origin}/auth/callback?role=${role}${
       role === 'staff' ? '&next=/staff' : ''
     }`;

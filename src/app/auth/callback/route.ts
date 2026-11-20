@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'issue-snap.sanyog.online';
+  const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+  const origin = `${proto}://${host}`;
   const code = searchParams.get('code');
   const role = searchParams.get('role') || 'citizen';
   const next = searchParams.get('next') ?? (role === 'staff' ? '/staff' : '/');

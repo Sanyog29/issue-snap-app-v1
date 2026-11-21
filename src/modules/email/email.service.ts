@@ -19,8 +19,8 @@ function getSmtpConfig(): SmtpConfig | null {
   }
 
   // Google 16-character App Passwords often contain spaces when copied (e.g. "abcd efgh ijkl mnop").
-  // Strip all whitespace so authentication succeeds.
-  const pass = rawPass.replace(/\s+/g, '');
+  // Strip inline comments (e.g. # comment), quotes, and all whitespace so authentication succeeds.
+  const pass = rawPass.split('#')[0].replace(/['"]/g, '').trim().replace(/\s+/g, '');
   const host = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
   const port = Number(process.env.SMTP_PORT || (host === 'smtp.gmail.com' ? 465 : 587));
   const secure = port === 465;

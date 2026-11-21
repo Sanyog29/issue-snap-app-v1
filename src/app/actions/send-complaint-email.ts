@@ -47,6 +47,23 @@ export async function dispatchComplaintConfirmationEmail(params: {
         if (userProfile?.full_name) {
           recipientName = userProfile.full_name;
         }
+
+        // Fallback: If not in public.users, query Supabase Auth directly via admin API
+        if (!recipientEmail && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          try {
+            const { data: authUserData } = await supabase.auth.admin.getUserById(params.userId);
+            if (authUserData?.user?.email) {
+              recipientEmail = authUserData.user.email;
+              recipientName =
+                recipientName ||
+                authUserData.user.user_metadata?.full_name ||
+                authUserData.user.user_metadata?.name ||
+                '';
+            }
+          } catch (authErr) {
+            console.warn('[Email Action] Auth admin getUserById warning:', authErr);
+          }
+        }
       }
     }
 
@@ -133,6 +150,23 @@ export async function dispatchStatusUpdateEmail(params: {
       }
       if (userProfile?.full_name) {
         recipientName = userProfile.full_name;
+      }
+
+      // Fallback: Query Supabase Auth directly via admin API if public.users is missing email
+      if (!recipientEmail && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        try {
+          const { data: authUserData } = await supabase.auth.admin.getUserById(requestRow.reporter_id);
+          if (authUserData?.user?.email) {
+            recipientEmail = authUserData.user.email;
+            recipientName =
+              recipientName ||
+              authUserData.user.user_metadata?.full_name ||
+              authUserData.user.user_metadata?.name ||
+              '';
+          }
+        } catch (authErr) {
+          console.warn('[Email Action] Status update auth admin lookup error:', authErr);
+        }
       }
     }
 

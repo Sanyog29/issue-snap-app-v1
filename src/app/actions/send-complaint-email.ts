@@ -28,6 +28,10 @@ export async function dispatchComplaintConfirmationEmail(params: {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+      if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        console.warn('[Email Action] SUPABASE_SERVICE_ROLE_KEY is not set in environment. Reporter email lookup may fail if blocked by Row-Level Security.');
+      }
+
       if (supabaseUrl && serviceRoleKey) {
         const supabase = createClient(supabaseUrl, serviceRoleKey);
 

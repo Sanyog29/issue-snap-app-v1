@@ -157,19 +157,43 @@ export async function submitComplaintReport(
 
     const trackingToken = requestRow.tracking_token || requestRow.id;
 
-    // 4. Asynchronously dispatch confirmation email
-    dispatchComplaintConfirmationEmail({
-      userId: validReporterId,
-      reporterEmail: input.reporterEmail,
-      complaintId: requestRow.id,
-      trackingToken,
-      title: input.title,
-      description: input.description,
-      category: input.category,
-      department: input.department,
-      priority: input.priority,
-      locationAddress: input.locationAddress,
-    }).catch((e) => console.warn('[Report Service] Background email warning:', e));
+    // 4. Create in-app notification directly for the registered reporter
+    if (validReporterId) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: validReporterId,
+          type: 'report_seen',
+          title: `Complaint Registered: ${input.title}`,
+          body: `Your report has been logged and routed to the ${input.department || 'Public Works'} department.`,
+          url: `/track/${trackingToken}`,
+          dedupe_key: `request_created_${requestRow.id}`,
+          metadata: { request_id: requestRow.id, status: 'New', category: input.category },
+        });
+      } catch (notifErr) {
+        console.warn('[Report Service] In-app notification creation warning:', notifErr);
+      }
+    }
+
+    // 5. Dispatch confirmation email (awaited with timeout so serverless context stays active)
+    try {
+      await Promise.race([
+        dispatchComplaintConfirmationEmail({
+          userId: validReporterId,
+          reporterEmail: input.reporterEmail,
+          complaintId: requestRow.id,
+          trackingToken,
+          title: input.title,
+          description: input.description,
+          category: input.category,
+          department: input.department,
+          priority: input.priority,
+          locationAddress: input.locationAddress,
+        }),
+        new Promise((resolve) => setTimeout(resolve, 4500)),
+      ]);
+    } catch (e) {
+      console.warn('[Report Service] Background email warning:', e);
+    }
 
     return {
       success: true,

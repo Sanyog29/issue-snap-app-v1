@@ -94,13 +94,45 @@ export async function updateRequestStatus(
       console.warn('[Staff Service] Audit update warning:', auditErr);
     }
 
-    // Asynchronously dispatch status update email to the citizen
-    dispatchStatusUpdateEmail({
-      requestId: params.requestId,
-      newStatus: params.newStatus,
-      oldStatus: params.oldStatus,
-      staffNotes: params.staffNotes,
-    }).catch((emailErr) => console.warn('[Staff Service] Email dispatch warning:', emailErr));
+    const updatedRequest = data as CivicRequest;
+
+    // Create in-app notification directly for the reporter
+    if (updatedRequest?.reporter_id) {
+      try {
+        const notifType = params.newStatus === 'resolved' ? 'report_fixed' : 'report_in_progress';
+        const notifTitle = params.newStatus === 'resolved'
+          ? `Issue Resolved: ${updatedRequest.title}`
+          : `Status Update: ${updatedRequest.title}`;
+        const notifBody = params.staffNotes || `Your reported issue status has been updated to ${params.newStatus.replace('_', ' ')}.`;
+
+        await supabase.from('notifications').insert({
+          user_id: updatedRequest.reporter_id,
+          type: notifType,
+          title: notifTitle,
+          body: notifBody,
+          url: `/track/${updatedRequest.tracking_token || updatedRequest.id}`,
+          dedupe_key: `status_change_${updatedRequest.id}_${params.newStatus}_${Date.now()}`,
+          metadata: { request_id: updatedRequest.id, new_status: params.newStatus },
+        });
+      } catch (notifErr) {
+        console.warn('[Staff Service] Notification insert warning:', notifErr);
+      }
+    }
+
+    // Dispatch status update email (awaited with timeout so serverless context stays active)
+    try {
+      await Promise.race([
+        dispatchStatusUpdateEmail({
+          requestId: params.requestId,
+          newStatus: params.newStatus,
+          oldStatus: params.oldStatus,
+          staffNotes: params.staffNotes,
+        }),
+        new Promise((resolve) => setTimeout(resolve, 4500)),
+      ]);
+    } catch (emailErr) {
+      console.warn('[Staff Service] Email dispatch warning:', emailErr);
+    }
 
     return { success: true, data: data as CivicRequest };
   } catch (err: unknown) {
